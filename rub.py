@@ -91,29 +91,25 @@ def ensure_session():
             pass
 
 
-def send_document(file_path: str, caption: str = ""):
-    client = RubikaClient(name=SESSION)
-
-    try:
-        client.start()
-        return client.send_document(
-            TARGET,
-            file_path,
-            caption=caption or ""
-        )
-    finally:
-        try:
-            client.disconnect()
-        except Exception:
-            pass
 
 
 def send_with_retry(file_path: str, caption: str = ""):
     last_error = None
-
+    client = RubikaClient(name=SESSION)
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            return send_document(file_path, caption)
+            client.start()
+            tx = f"""در حال ارسال فایل
+                    {file_path}
+                    """
+            client.send_message(TARGET,tx)
+            client.send_document(
+                TARGET,
+                file_path,
+                caption=caption or ""
+            )
+
+            return
         except Exception as e:
             last_error = e
             error_text = str(e).lower()
@@ -131,12 +127,23 @@ def send_with_retry(file_path: str, caption: str = ""):
                 ]
             )
 
+
+            error_msg = f"""Attempt {attempt}/{MAX_RETRIES} failed \nerror: {error_text} """
+            client.send_message(TARGET,error_msg)
             if transient and attempt < MAX_RETRIES:
                 time.sleep(RETRY_DELAY * attempt)
                 continue
 
             break
 
+            
+
+        finally:
+            try:
+                os.remove(file_path)
+                client.disconnect()
+            except Exception:
+                pass
     raise last_error if last_error else RuntimeError("Upload failed.")
 
 
@@ -227,7 +234,11 @@ def worker_loop():
         try:
             process_task(task)
         except Exception as e:
+            client = RubikaClient(name=SESSION)
+            client.start()
+            client.send_message(TARGET,f"{task}\n{str(e)}")
             append_failed(task, str(e))
+            client.disconnect()
         finally:
             clear_processing()
 

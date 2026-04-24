@@ -3,3 +3,4 @@ tgcrypto==1.2.5
 rubpy==7.3.4
 python-dotenv==1.2.2
 requests==2.25.1
+yt-dlp
