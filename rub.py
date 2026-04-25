@@ -199,7 +199,7 @@ def send_with_retry(file_path: str, caption: str = "", task: dict | None = None)
                     "uploading"
                 )
 
-            return send_with_timeout(file_path, caption, 60)
+            return send_with_timeout(file_path, caption, 300)
 
         except Exception as e:
             last_error = e
