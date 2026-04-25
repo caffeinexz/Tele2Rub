@@ -27,7 +27,7 @@ URL_DIR = DOWNLOAD_DIR / "url"
 CANCEL_FILE = QUEUE_DIR / "cancelled.jsonl"
 
 MAX_RETRIES = 5
-UPLOAD_TIMEOUT = 600
+UPLOAD_TIMEOUT = 1800
 TARGET = "me"
 
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -52,6 +52,18 @@ def pretty_size(size) -> str:
 
     return f"{size:.2f} {units[index]}"
 
+def get_per_attempt_timeout(file_path: str) -> int:
+    size_mb = Path(file_path).stat().st_size / (1024 * 1024)
+
+    if size_mb < 100:
+        return 180
+    elif size_mb < 500:
+        return 420
+    elif size_mb < 1000:
+        return 720
+    else:
+        return 1200
+    
 def eta_text(seconds) -> str:
     if not seconds or seconds <= 0:
         return "نامشخص"
@@ -199,7 +211,15 @@ def send_with_retry(file_path: str, caption: str = "", task: dict | None = None)
                     "uploading"
                 )
 
-            return send_with_timeout(file_path, caption, 300)
+            elapsed = time.time() - start_time
+            remaining = UPLOAD_TIMEOUT - elapsed
+
+            if remaining <= 0:
+                raise RuntimeError("آپلود بیشتر از ۳۰ دقیقه طول کشید و لغو شد.")
+
+            per_attempt = min(get_per_attempt_timeout(file_path), remaining)
+
+            return send_with_timeout(file_path, caption, per_attempt)
 
         except Exception as e:
             last_error = e
